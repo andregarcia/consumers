@@ -6,7 +6,7 @@
 
     <groupId>ag.code</groupId>
     <artifactId>consumers</artifactId>
-    <version>0.0.3-SNAPSHOT</version>
+    <version>0.0.4-SNAPSHOT</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
