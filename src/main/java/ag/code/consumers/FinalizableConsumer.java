@@ -1,9 +1,12 @@
 package ag.code.consumers;
 
-import java.util.function.Consumer;
 
-public interface FinalizableConsumer<T> extends Consumer<T> {
+public abstract class FinalizableConsumer<T, U> extends Consumer<T, U> {
 
-    default void finalize(){ };
+    public FinalizableConsumer(int index) {
+        super(index);
+    }
+
+    public void finalize(){ };
 
 }

@@ -1,19 +1,21 @@
 package ag.code.consumers;
 
+import ag.code.consumers.result.*;
+import ag.code.consumers.result.collector.MultiConsumerResultCollector;
+import ag.code.consumers.result.collector.MultiConsumerResultsCollector;
+
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 
-public class AsyncConsumers<T> {
+public class AsyncConsumers<T, U> {
 
-    private List<Consumer> consumers;
+    private List<Consumer<T, U>> consumers;
 
     private ThreadPoolExecutor threadPoolExecutor;
 
-    private List<Future> tasks;
-
-    private Consumer<Exception> exceptionHandler;
+    private List<Future<U>> tasks;
 
     public AsyncConsumers(int nThreads) {
         consumers = new LinkedList<>();
@@ -21,38 +23,61 @@ public class AsyncConsumers<T> {
         threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(nThreads);
     }
 
-    public AsyncConsumers add(Consumer lyContentConsumer) {
+    public AsyncConsumers<T, U> add(Consumer<T, U> lyContentConsumer) {
         consumers.add(lyContentConsumer);
         return this;
     }
 
-    public void consume(T t) {
-        consumers.forEach((consumer) -> {
-            Future<?> task = threadPoolExecutor.submit(() -> consumer.accept(t));
-            tasks.add(task);
-        });
-    }
-
-    public void consume(Collection<T> collection) {
-        collection.forEach(this::consume);
-    }
-
-    public void join(long timeout, TimeUnit timeUnit) throws ExecutionException,
-            InterruptedException, TimeoutException {
-        for (Future<?> f : tasks) {
-            try {
-                f.get(timeout, timeUnit);
-            } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                if (exceptionHandler != null) exceptionHandler.accept(e);
-                else throw e;
+    public AsyncConsumers<T, U> add(Function<T, U> consumer) {
+        consumers.add(new Consumer<T, U>(consumers.size()) {
+            @Override
+            public U apply(T t) {
+                return consumer.apply(t);
             }
-        }
+        });
+        return this;
     }
+
+    public int consumers(){
+        return consumers.size();
+    }
+
+    public MultiConsumerResult<T, U> consume(T t) {
+        return consumers.stream()
+                .map((Consumer<T, U> consumer) ->
+                        new ConsumerResult<T, U>(consumer, threadPoolExecutor.submit(() -> consumer.apply(t))))
+                .collect(new MultiConsumerResultCollector<T, U>());
+    }
+
+    public MultiConsumerResults<T, U> consume(Collection<T> collection) {
+        return collection
+                .stream()
+                .map(this::consume)
+                .collect(new MultiConsumerResultsCollector<T, U>());
+    }
+
+    public MultiConsumerResults<T, U> consumeAndWait(Collection<T> collection){
+        return consumeAndWait(collection, null);
+    }
+
+    public MultiConsumerResults<T, U> consumeAndWait(Collection<T> collection, java.util.function.Consumer<Exception> exceptionHandler) {
+        MultiConsumerResults<T, U> result = consume(collection);
+        result.applyResults(c -> {
+            try {
+                c.get();
+            } catch (InterruptedException | ExecutionException e) {
+                if(exceptionHandler != null) exceptionHandler.accept(e);
+                else throw new RuntimeException(e);
+            }
+        });
+        return result;
+    }
+
 
     public void finalize() {
         consumers.forEach(consumer -> {
             if (consumer instanceof FinalizableConsumer) {
-                ((FinalizableConsumer) consumer).finalize();
+                ((FinalizableConsumer<T, U>) consumer).finalize();
             }
         });
     }
