@@ -7,6 +7,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+
 public class ConsumerResult<T, U> {
 
     protected Consumer<T, U> consumer;

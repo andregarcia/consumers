@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,7 +21,7 @@ class AsyncConsumersTest {
                 .add((String s) -> s.toLowerCase())
                 .add((String s) -> s.toUpperCase());
 
-        assertEquals(2, asyncConsumers.consumers());
+        assertEquals(2, asyncConsumers.consumerCount());
     }
 
     @Test
@@ -37,7 +38,6 @@ class AsyncConsumersTest {
 
     @Test
     void consumeMany() throws ExecutionException, InterruptedException {
-
         AsyncConsumers<String, String> asyncConsumers = new AsyncConsumers<>(2);
         asyncConsumers
                 .add((String s) -> s.toLowerCase())
@@ -91,6 +91,33 @@ class AsyncConsumersTest {
         assertEquals("def", result.get(0).get(1).get());
         assertEquals("ABC", result.get(1).get(0).get());
         assertEquals("DEF", result.get(1).get(1).get());
+    }
+
+    @Test
+    public void testConsumerIndexIsSet() throws ExecutionException, InterruptedException {
+        AsyncConsumers<Void, String> asyncConsumers = new AsyncConsumers<>(2);
+        asyncConsumers
+                .add(() -> "x")
+                .add(4, new Supplier<String>() {
+                    @Override
+                    public String get() {
+                        return "z";
+                    }
+                })
+                .add(2, new Consumer<>() {
+                    @Override
+                    public String apply(Void unused) {
+                        return "y";
+                    }
+                });
+
+        MultiConsumerResults<Void, String> results = asyncConsumers.consumeAndWait(new Void[2]);
+        assertEquals("x", results.get(0).get(0).get());
+        assertEquals("x", results.get(0).get(1).get());
+        assertEquals("y", results.get(1).get(0).get());
+        assertEquals("y", results.get(1).get(1).get());
+        assertEquals("z", results.get(2).get(0).get());
+        assertEquals("z", results.get(2).get(1).get());
     }
 
 }
